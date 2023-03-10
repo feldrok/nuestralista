@@ -26,13 +26,14 @@ export const itemRouter = createTRPCRouter({
       }
     }),
   addItem: protectedProcedure
-    .input(z.object({ name: z.string() }))
+    .input(z.object({ name: z.string(), listId: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
         const item = ctx.prisma.item.create({
           data: {
             name: input.name,
             userId: ctx.session.user.id,
+            listId: input.listId,
           },
         });
         return item;

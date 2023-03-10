@@ -38,8 +38,12 @@ export const getServerSideProps = async ({
 const Home: NextPage = () => {
   const [selected, setSelected] = useState<Item | null>(null);
   const [listInput, setListInput] = useState<string>("");
+  const [itemInput, setItemInput] = useState<string>("");
   const { data: session } = useSession();
   const { data: lists } = api.lists.getAll.useQuery();
+  const { data: items, isLoading } = api.items.getAll.useQuery({
+    listId: selected?.id ?? "",
+  });
   const { mutate: addList } = api.lists.addList.useMutation({
     onSuccess: async () => {
       setListInput("");
@@ -48,7 +52,9 @@ const Home: NextPage = () => {
   });
   const { mutate: updateItem } = api.items.updateItem.useMutation({
     onSuccess: async () => {
-      await api.useContext().items.getAll.invalidate();
+      await api.useContext().items.getAll.invalidate({
+        listId: selected?.id ?? "",
+      });
     },
   });
   const { mutate: deleteItem } = api.items.deleteItem.useMutation({
@@ -56,8 +62,13 @@ const Home: NextPage = () => {
       await api.useContext().items.getAll.invalidate();
     },
   });
-  const { data: items, isLoading } = api.items.getAll.useQuery({
-    listId: selected?.id || "",
+  const { mutate: addItem } = api.items.addItem.useMutation({
+    onSuccess: async () => {
+      setItemInput("");
+      await api.useContext().items.getAll.invalidate({
+        listId: selected?.id ?? "",
+      });
+    },
   });
 
   return (
@@ -172,40 +183,55 @@ const Home: NextPage = () => {
         </div>
       </nav>
       <main className="min-h-screen bg-black pt-4">
-        <ul className="mx-auto grid w-full max-w-2xl grid-cols-1 gap-4 rounded-xl p-4">
-          {isLoading ? (
-            <div>Loading...</div>
-          ) : (
-            items?.map((item, itemIdx) => (
-              <li
-                key={itemIdx}
-                className="flex items-center justify-between rounded-lg bg-white p-4 shadow-md"
-              >
-                <div className="flex items-center gap-4">
-                  <input
-                    type="checkbox"
-                    checked={item.checked}
-                    onChange={() => {
-                      updateItem({
-                        ...item,
-                        checked: !item.checked,
-                      });
-                    }}
-                  />
-                  <span className="text-gray-800">{item.name}</span>
-                </div>
-                <button
-                  onClick={() => {
-                    deleteItem(item);
-                  }}
+        <div className="mx-auto flex max-w-2xl flex-col justify-center p-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addItem({ listId: selected?.id ?? "", name: itemInput });
+            }}
+            className="flex items-center"
+          >
+            <input
+              type="text"
+              onChange={(e) => setItemInput(e.target.value)}
+              className="rounded-xl p-2 outline-none"
+              placeholder="Nuevo item"
+            />
+          </form>
+          <ul className="grid w-full max-w-2xl grid-cols-1 gap-4 rounded-xl pt-4">
+            {isLoading ? (
+              <div>Loading...</div>
+            ) : (
+              items?.map((item, itemIdx) => (
+                <li
+                  key={itemIdx}
+                  className="flex items-center justify-between rounded-lg bg-white p-4 shadow-md"
                 >
-                  <TrashIcon className="h-5 w-5 text-gray-800" />
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-        <div className="flex flex-col items-center gap-2"></div>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={() => {
+                        updateItem({
+                          id: item.id,
+                          checked: !item.checked,
+                        });
+                      }}
+                    />
+                    <span className="text-gray-800">{item.name}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      deleteItem(item);
+                    }}
+                  >
+                    <TrashIcon className="h-5 w-5 text-gray-800" />
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
       </main>
     </>
   );
