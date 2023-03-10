@@ -225,7 +225,7 @@ const Home: NextPage = () => {
               <p className="text-white">Cargando...</p>
             ) : (
               <>
-                {items?.length > 0 ? (
+                {items?.length !== 0 ? (
                   items?.map((item, itemIdx) => (
                     <li
                       key={itemIdx}
