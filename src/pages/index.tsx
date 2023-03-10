@@ -14,7 +14,7 @@ import {
 
 import { api } from "../utils/api";
 import React, { Fragment, useState } from "react";
-import { Item } from "@prisma/client";
+import type { List } from "@prisma/client";
 
 export const getServerSideProps = async ({
   req,
@@ -36,40 +36,56 @@ export const getServerSideProps = async ({
 };
 
 const Home: NextPage = () => {
-  const [selected, setSelected] = useState<Item | null>(null);
+  const [selected, setSelected] = useState<List | null>(null);
   const [listInput, setListInput] = useState<string>("");
   const [itemInput, setItemInput] = useState<string>("");
+  const context = api.useContext();
   const { data: session } = useSession();
   const { data: lists } = api.lists.getAll.useQuery();
   const { data: items, isLoading } = api.items.getAll.useQuery({
     listId: selected?.id ?? "",
   });
   const { mutate: addList } = api.lists.addList.useMutation({
-    onSuccess: async () => {
+    onSettled: async () => {
       setListInput("");
-      await api.useContext().lists.getAll.invalidate();
+      await context.lists.getAll.invalidate();
     },
   });
+  const { mutate: addItem, isLoading: newItemLoading } =
+    api.items.addItem.useMutation({
+      onSettled: async () => {
+        setItemInput("");
+        await context.items.getAll.invalidate();
+      },
+    });
   const { mutate: updateItem } = api.items.updateItem.useMutation({
-    onSuccess: async () => {
-      await api.useContext().items.getAll.invalidate({
-        listId: selected?.id ?? "",
-      });
-    },
-  });
-  const { mutate: deleteItem } = api.items.deleteItem.useMutation({
-    onSuccess: async () => {
-      await api.useContext().items.getAll.invalidate();
-    },
-  });
-  const { mutate: addItem } = api.items.addItem.useMutation({
-    onSuccess: async () => {
+    onSettled: async () => {
       setItemInput("");
-      await api.useContext().items.getAll.invalidate({
+      await context.items.getAll.invalidate({
         listId: selected?.id ?? "",
       });
     },
   });
+  const { mutate: deleteItem, isLoading: deletingItem } =
+    api.items.deleteItem.useMutation({
+      onSettled: async () => {
+        await context.items.getAll.invalidate({
+          listId: selected?.id ?? "",
+        });
+      },
+    });
+
+  const handleAddList = () => {
+    addList({ name: listInput });
+  };
+
+  const handleAddItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    addItem({
+      listId: selected?.id ?? "",
+      name: itemInput,
+    });
+  };
 
   return (
     <>
@@ -167,7 +183,7 @@ const Home: NextPage = () => {
             <Popover.Panel className="absolute right-0 z-10 mt-3 ">
               <div className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black ring-opacity-5">
                 <form
-                  onSubmit={() => addList({ name: listInput })}
+                  onSubmit={handleAddList}
                   className="flow-root rounded-md bg-white p-4 transition duration-150 ease-in-out focus:outline-none focus-visible:ring focus-visible:ring-orange-500 focus-visible:ring-opacity-50"
                 >
                   <input
@@ -184,51 +200,71 @@ const Home: NextPage = () => {
       </nav>
       <main className="min-h-screen bg-black pt-4">
         <div className="mx-auto flex max-w-2xl flex-col justify-center p-2">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              addItem({ listId: selected?.id ?? "", name: itemInput });
-            }}
-            className="flex items-center"
-          >
-            <input
-              type="text"
-              onChange={(e) => setItemInput(e.target.value)}
-              className="rounded-xl p-2 outline-none"
-              placeholder="Nuevo item"
-            />
-          </form>
+          {selected !== null ? (
+            <>
+              <form onSubmit={handleAddItem} className="flex items-center">
+                <input
+                  type="text"
+                  onChange={(e) => setItemInput(e.target.value)}
+                  value={itemInput}
+                  className="rounded-xl p-2 outline-none"
+                  placeholder="Nuevo item"
+                />
+              </form>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center">
+              <h1 className="text-2xl text-white">
+                Selecciona o crea una nueva lista
+              </h1>
+            </div>
+          )}
+
           <ul className="grid w-full max-w-2xl grid-cols-1 gap-4 rounded-xl pt-4">
             {isLoading ? (
-              <div>Loading...</div>
+              <p className="text-white">Cargando...</p>
             ) : (
-              items?.map((item, itemIdx) => (
-                <li
-                  key={itemIdx}
-                  className="flex items-center justify-between rounded-lg bg-white p-4 shadow-md"
-                >
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="checkbox"
-                      checked={item.checked}
-                      onChange={() => {
-                        updateItem({
-                          id: item.id,
-                          checked: !item.checked,
-                        });
-                      }}
-                    />
-                    <span className="text-gray-800">{item.name}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      deleteItem(item);
-                    }}
-                  >
-                    <TrashIcon className="h-5 w-5 text-gray-800" />
-                  </button>
-                </li>
-              ))
+              <>
+                {items?.length > 0 ? (
+                  items?.map((item, itemIdx) => (
+                    <li
+                      key={itemIdx}
+                      className="flex items-center justify-between rounded-lg bg-white p-4 shadow-md"
+                    >
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="checkbox"
+                          checked={item.checked}
+                          onChange={() => {
+                            updateItem({
+                              id: item.id,
+                              checked: !item.checked,
+                            });
+                          }}
+                        />
+                        <span className="text-gray-800">{item.name}</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          deleteItem(item);
+                        }}
+                        disabled={deletingItem ? true : false}
+                      >
+                        <TrashIcon
+                          className={`h-5 w-5 ${
+                            deletingItem ? "text-gray-300" : "text-gray-800"
+                          }`}
+                        />
+                      </button>
+                    </li>
+                  ))
+                ) : (
+                  <p className="text-white">Tu lista está vacía</p>
+                )}
+                {newItemLoading ? (
+                  <li className="text-white">Creando item...</li>
+                ) : null}
+              </>
             )}
           </ul>
         </div>

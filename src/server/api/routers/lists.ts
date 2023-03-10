@@ -23,13 +23,13 @@ export const listRouter = createTRPCRouter({
     .input(z.object({ name: z.string() }))
     .mutation(async ({ input, ctx }) => {
       try {
-        const item = ctx.prisma.list.create({
+        const list = ctx.prisma.list.create({
           data: {
             name: input.name,
             userId: ctx.session.user.id,
           },
         });
-        return item;
+        return list;
       } catch (error) {
         console.log(error);
       }

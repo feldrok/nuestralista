@@ -20,6 +20,9 @@ export const itemRouter = createTRPCRouter({
           where: {
             listId: input.listId,
           },
+          orderBy: {
+            checked: "asc",
+          },
         });
       } catch (error) {
         console.log(error);
@@ -34,6 +37,7 @@ export const itemRouter = createTRPCRouter({
             name: input.name,
             userId: ctx.session.user.id,
             listId: input.listId,
+            checked: false,
           },
         });
         return item;
